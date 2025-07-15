@@ -7,6 +7,7 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
+from scipy.sparse import issparse
 
 def split_features_targets(df: pd.DataFrame, target_col: str = "Exited") -> Tuple[pd.DataFrame, pd.Series]:
     """
@@ -80,7 +81,7 @@ def preprocess_data(
 
     return X_train_processed, y_train, X_val_processed, y_val, input_cols, scaler, encoder
 
-def preprocess_new_data(
+    def preprocess_new_data(
     new_df: pd.DataFrame,
     input_cols: List[str],
     scaler: Optional[StandardScaler],
@@ -96,26 +97,37 @@ def preprocess_new_data(
     :return: Масив оброблених даних
     """
     df = new_df.copy()
+
+    # 1. Видаляємо непотрібні колонки
     df = remove_unwanted_columns(df, ['id', 'CustomerId', 'Surname'])
+
+    # 2. Фільтруємо лише ті колонки, які використовувались під час тренування
     df = df[input_cols]
 
+    # 3. Визначаємо типи колонок
     numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
     categorical_cols = df.select_dtypes(include='object').columns.tolist()
 
-    # Імпутація
+    # 4. Імпутація
     for col in numeric_cols:
         df[col].fillna(df[col].median(), inplace=True)
     for col in categorical_cols:
         df[col].fillna(df[col].mode()[0], inplace=True)
 
-    # Масштабування
+    # 5. Масштабування числових даних
     if scaler:
         df[numeric_cols] = scaler.transform(df[numeric_cols])
 
-    # Кодування
+    # 6. Кодування категоріальних даних
     encoded_cats = encoder.transform(df[categorical_cols])
-    encoded_cat_df = pd.DataFrame(encoded_cats, columns=encoder.get_feature_names_out(categorical_cols), index=df.index)
+    if issparse(encoded_cats):
+        encoded_cats = encoded_cats.toarray()
+
+    encoded_cat_df = pd.DataFrame(encoded_cats, index=df.index)
+
+    # 7. Об'єднання числових і закодованих категоріальних ознак
     df = df.drop(columns=categorical_cols)
-    df_final = pd.concat([df, encoded_cat_df], axis=1)
+    df_final = pd.concat([df.reset_index(drop=True), encoded_cat_df.reset_index(drop=True)], axis=1)
+
 
     return df_final.values
