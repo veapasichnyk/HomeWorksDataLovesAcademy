@@ -132,9 +132,9 @@ def preprocess_new_data(
     categorical_cols = df.select_dtypes(include='object').columns.tolist()
 
     for col in numeric_cols:
-        df[col].fillna(df[col].median(), inplace=True)
+     df[col] = df[col].fillna(df[col].median())
     for col in categorical_cols:
-        df[col].fillna(df[col].mode()[0], inplace=True)
+     df[col] = df[col].fillna(df[col].mode()[0])
 
     if scaler:
         df[numeric_cols] = scaler.transform(df[numeric_cols])
